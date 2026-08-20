@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Live Transcriber — Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0F1115;
+    --surface:#171A21;
+    --surface-2:#1E222B;
+    --line:#2A2F3A;
+    --text:#E8E6E1;
+    --muted:#8B8F98;
+    --accent:#2DD4BF;      /* teal — the "live signal" color */
+    --accent-dim:#1B4E48;
+    --warn:#F5A623;        /* low-confidence flag */
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',system-ui,sans-serif;
+    padding:32px;
+  }
+  .card{
+    width:100%;
+    max-width:560px;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:32px;
+  }
+  .header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    margin-bottom:28px;
+  }
+  .header h1{
+    font-family:'JetBrains Mono',monospace;
+    font-size:15px;
+    font-weight:600;
+    letter-spacing:0.02em;
+    margin:0;
+    color:var(--text);
+  }
+  .status{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+  }
+  .status.live{ color:var(--accent); }
+
+  .mic-row{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    padding:20px 0 32px;
+  }
+  .mic-wrap{
+    position:relative;
+    width:96px;
+    height:96px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .ring{
+    position:absolute;
+    border-radius:50%;
+    border:1px solid var(--accent);
+    opacity:0;
+    pointer-events:none;
+  }
+  .mic-btn{
+    position:relative;
+    z-index:2;
+    width:64px;
+    height:64px;
+    border-radius:50%;
+    border:none;
+    background:var(--surface-2);
+    color:var(--text);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    transition:background 0.15s ease, transform 0.1s ease;
+  }
+  .mic-btn:hover{ background:#252A35; }
+  .mic-btn:active{ transform:scale(0.96); }
+  .mic-btn.recording{
+    background:var(--accent);
+    color:var(--ink);
+  }
+  .mic-btn svg{ width:24px; height:24px; }
+
+  .hint{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+
+  .panel{
+    border-top:1px solid var(--line);
+    padding-top:24px;
+  }
+  .panel-label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    margin-bottom:10px;
+  }
+  .corrected-text{
+    font-size:19px;
+    line-height:1.55;
+    min-height:60px;
+    color:var(--text);
+  }
+  .corrected-text.empty{ color:var(--muted); font-size:15px; }
+
+  .raw-log{
+    margin-top:22px;
+  }
+  .raw-log-toggle{
+    background:none;
+    border:none;
+    color:var(--muted);
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    cursor:pointer;
+    padding:0;
+    text-decoration:underline;
+    text-underline-offset:3px;
+  }
+  .raw-list{
+    display:none;
+    flex-direction:column;
+    gap:6px;
+    margin-top:12px;
+    max-height:160px;
+    overflow-y:auto;
+  }
+  .raw-list.open{ display:flex; }
+  .raw-item{
+    font-size:13px;
+    color:var(--muted);
+    line-height:1.5;
+    display:flex;
+    gap:8px;
+    align-items:baseline;
+  }
+  .raw-item .tag{
+    font-family:'JetBrains Mono',monospace;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:0.05em;
+    padding:2px 5px;
+    border-radius:3px;
+    background:var(--surface-2);
+    color:var(--warn);
+    border:1px solid var(--warn);
+    flex-shrink:0;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="header">
+    <h1>voice_input</h1>
+    <span class="status" id="status">idle</span>
+  </div>
+
+  <div class="mic-row">
+    <div class="mic-wrap">
+      <div class="ring" id="ring1"></div>
+      <div class="ring" id="ring2"></div>
+      <button class="mic-btn" id="micBtn" aria-label="Toggle microphone">
+        <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+      </button>
+    </div>
+    <span class="hint" id="hint">tap to start listening</span>
+    <span class="hint" id="interim" style="min-height:14px;"></span>
+  </div>
+
+  <div class="panel">
+    <div class="panel-label">live transcript (corrected + condensed)</div>
+    <div class="corrected-text empty" id="correctedText">Say something — a cleaned, shortened version will appear here as you speak. (The first correction can take 10-30s while the local model warms up.)</div>
+
+    <div class="raw-log">
+      <button class="raw-log-toggle" id="rawToggle">show raw feed</button>
+      <div class="raw-list" id="rawList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="live-transcriber.js"></script>
+<script>
+  // --- Point these at wherever the API is running ---
+  const API_BASE = "http://localhost:8000";
+  const transcriber = new LiveTranscriber({
+    sessionUrl: `${API_BASE}/session`,
+    wsUrl: API_BASE.replace(/^http/, "ws") + "/ws/stream",
+  });
+
+  const micBtn = document.getElementById("micBtn");
+  const statusEl = document.getElementById("status");
+  const hintEl = document.getElementById("hint");
+  const correctedEl = document.getElementById("correctedText");
+  const rawListEl = document.getElementById("rawList");
+  const rawToggle = document.getElementById("rawToggle");
+  const ring1 = document.getElementById("ring1");
+  const ring2 = document.getElementById("ring2");
+
+  let recording = false;
+
+  rawToggle.addEventListener("click", () => {
+    rawListEl.classList.toggle("open");
+    rawToggle.textContent = rawListEl.classList.contains("open") ? "hide raw feed" : "show raw feed";
+  });
+
+  micBtn.addEventListener("click", async () => {
+    if (!recording) {
+      micBtn.disabled = true;
+      try {
+        await transcriber.start();
+      } catch (err) {
+        console.error(err);
+        hintEl.textContent = "mic access failed — check permissions";
+      }
+      micBtn.disabled = false;
+    } else {
+      transcriber.stop();
+    }
+  });
+
+  transcriber.addEventListener("status", (e) => {
+    const s = e.detail.status;
+    statusEl.textContent = s;
+    statusEl.classList.toggle("live", s === "listening");
+    recording = s === "listening" || s === "connecting";
+    micBtn.classList.toggle("recording", s === "listening");
+    if (s === "listening") hintEl.textContent = "listening — tap to stop";
+    if (s === "connecting") hintEl.textContent = "connecting…";
+    if (s === "idle") { hintEl.textContent = "tap to start listening"; setRingScale(0); }
+  });
+
+  transcriber.addEventListener("level", (e) => {
+    setRingScale(Math.min(1, e.detail.rms * 6)); // amplify quiet mic input for a visible reaction
+  });
+
+  transcriber.addEventListener("rawsegment", (e) => {
+    const seg = e.detail;
+    document.getElementById("interim").textContent = `heard: "${seg.text}"`;
+
+    const item = document.createElement("div");
+    item.className = "raw-item";
+    const flags = [];
+    if (seg.low_confidence) flags.push("low-confidence");
+    if (seg.low_energy) flags.push("quiet");
+    item.innerHTML = (flags.length ? `<span class="tag">${flags.join(" · ")}</span>` : "") + `<span>${escapeHtml(seg.text)}</span>`;
+    rawListEl.prepend(item);
+  });
+
+  transcriber.addEventListener("corrected", (e) => {
+    correctedEl.textContent = e.detail.text;
+    correctedEl.classList.remove("empty");
+  });
+
+  function setRingScale(intensity) {
+    // intensity 0..1 drives how far the rings expand — a direct visual readout of mic input level
+    const r1 = 1 + intensity * 0.5;
+    const r2 = 1 + intensity * 0.9;
+    ring1.style.opacity = recording ? String(0.5 * intensity + 0.05) : "0";
+    ring2.style.opacity = recording ? String(0.3 * intensity) : "0";
+    ring1.style.width = ring1.style.height = `${64 * r1}px`;
+    ring2.style.width = ring2.style.height = `${64 * r2}px`;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+</body>
+</html>
