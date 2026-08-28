@@ -213,15 +213,15 @@
   </div>
 </div>
 
-<script src="live-transcriber.js"></script>
+<script src="/static/live-transcriber.js"></script>
 <script>
   // --- Point these at wherever the API is running ---
-  const API_BASE = "http://localhost:8000";
-  const transcriber = new LiveTranscriber({
-    sessionUrl: `${API_BASE}/session`,
-    wsUrl: API_BASE.replace(/^http/, "ws") + "/ws/stream",
-  });
+const API_BASE = window.location.origin;
 
+const transcriber = new LiveTranscriber({
+  sessionUrl: `${API_BASE}/session`,
+  wsUrl: API_BASE.replace(/^http/, "ws") + "/ws/stream",
+});
   const micBtn = document.getElementById("micBtn");
   const statusEl = document.getElementById("status");
   const hintEl = document.getElementById("hint");
